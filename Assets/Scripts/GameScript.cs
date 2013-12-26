@@ -20,12 +20,12 @@ public class GameScript : MonoBehaviour {
 	private readonly Color answerAColor = new Color(0f / 255f, 204f / 255f, 255f / 255f);
 	private readonly Color answerBColor = new Color(255f / 255f, 204f / 255f, 0f / 255f);
 	private const string saveGameFilename = "SaveGame";
-	private readonly int[] percentages = {50, 60, 70, 80, 90, 99};
+	private readonly int[] percentages = {50, 65, 80, 90, 99};
 	private readonly string[] labelKeysA = {"y", "t", "r", "e", "w", "q"};
 	private readonly string[] labelKeysB = {"h", "g", "f", "d", "s", "a"};
 	private readonly int[] labelWidths = {17, 22, 17, 15, 17, 17}; // Width of the widest character above, for alignment
 	
-	private const int answersPerLine = 5;
+	private const int answersPerLine = 4;
 
 	GUIStyle highlightedStyle;
 
@@ -380,7 +380,7 @@ public class GameScript : MonoBehaviour {
 		GUILayout.BeginVertical("box");
 		
 		// Buttons for answer A
-		if(FirstTutorialQuestion) GUILayout.Label("If you think A is the correct answer, and you think the probability of you being right is 70%, then press the 70% button in the A row.");
+		if(FirstTutorialQuestion) GUILayout.Label("If you think A is the correct answer, and you think the probability of you being right is 80%, then press the 80% button in the A row.");
 		GuiAddButtonLine(labelKeysA, true, answerBColor, answerAColor);
 		
 		// Buttons for answer B
