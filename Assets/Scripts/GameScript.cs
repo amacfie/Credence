@@ -3,6 +3,7 @@ using System.IO;
 using System.Collections;
 using System.Collections.Generic;
 using TagUsage = QuestionsScript.TagUsage;
+using GeneratorFrequency = QuestionsScript.GeneratorFrequency;
 
 public class GameScript : MonoBehaviour {
 	
@@ -35,7 +36,7 @@ public class GameScript : MonoBehaviour {
 	List<Answer> answers = new List<Answer>();
 	List<Bar> bars = new List<Bar>();
 	int questionCount;//questions asked so far
-	int currentQuestion;//current question that's being asked
+	Question currentQuestion;//current question that's being asked
 	bool reverseOptions;//if true, B) will be the correct answer
 	
 	bool tutorialFinished = false;
@@ -48,7 +49,7 @@ public class GameScript : MonoBehaviour {
 	double totalScore;
 	double averageScore;
 	bool showingFullGraph = true;
-	
+
 	Vector2 uiScrollPosition;
 	bool uiShowAllInstructions = false;
 	int uiIntructionsPage = -2;
@@ -69,8 +70,14 @@ public class GameScript : MonoBehaviour {
 	bool FirstTutorialQuestion { get { return !tutorialAnsweredOneQuestion && !tutorialShowScore ; } }
 	bool SecondTutorialQuestion { get { return tutorialAnsweredOneQuestion && !tutorialShowScore ; } }
 	public int QuestionCount { get { return this.questionCount; } set { this.questionCount = value; } }
-	public int CurrentQuestionIndex { get { return this.currentQuestion; } }
-	public Question CurrentQuestion { get { return QuestionsScript.singleton.GetQuestion(this.currentQuestion); } }
+	public Question CurrentQuestion {
+		get {
+			if(currentQuestion == null){
+				currentQuestion = QuestionsScript.singleton.GenerateQuestion();
+			}
+			return currentQuestion;
+		}
+	}
 	#endregion
 	
 	
@@ -82,10 +89,13 @@ public class GameScript : MonoBehaviour {
 		if(!Application.isWebPlayer){
 			if(File.Exists(SaveGameFilename)){
 				LoadGame();
+				// Tags may have been updated.
+				QuestionsScript.singleton.SelectAndShuffleGenerators();
 			} else {
 				SaveGame();
 			}
 		}
+
 		//SetTutorialStatus(false);
 
 		if(tutorialFinished) gameStep = GameStep.Question;
@@ -111,11 +121,22 @@ public class GameScript : MonoBehaviour {
 			writer.WriteLine(answers[n].percentConfidence);
 			writer.WriteLine(answers[n].score);
 		}
+
 		writer.WriteLine(QuestionsScript.tags.Count);
 		foreach(KeyValuePair<string, TagUsage> pair in QuestionsScript.tags){
 			writer.WriteLine(pair.Key);
 			writer.WriteLine(pair.Value.ToString());
 		}
+
+		int version = 1;
+		writer.WriteLine(version);
+
+		writer.WriteLine(QuestionsScript.generatorFrequency.Count);
+		foreach(KeyValuePair<string, GeneratorFrequency> pair in QuestionsScript.generatorFrequency){
+			writer.WriteLine(pair.Key);
+			writer.WriteLine(pair.Value.ToString());
+		}
+
 		writer.Close();
 		saving = false;
 		yield return new WaitForSeconds(0f);
@@ -135,6 +156,7 @@ public class GameScript : MonoBehaviour {
 			answer.score = int.Parse(reader.ReadLine());
 			answers.Add(answer);
 		}
+
 		string tagCountStr = reader.ReadLine();
 		if(tagCountStr != null){
 			int tagCount = int.Parse(tagCountStr);
@@ -146,6 +168,25 @@ public class GameScript : MonoBehaviour {
 					} catch(System.ArgumentException e){
 						Debug.LogError(e);
 					}
+				}
+			}
+		}
+
+		string versionStr = reader.ReadLine();
+		int version = 0;
+		if(versionStr != null){
+			version = int.Parse(versionStr);
+		}
+
+		if(version >= 1){
+			int freqCount = int.Parse(reader.ReadLine());
+			for(int n = 0; n < freqCount; ++n){
+				string generatorId = reader.ReadLine();
+				try {
+					QuestionsScript.generatorFrequency[generatorId] =
+						(GeneratorFrequency)System.Enum.Parse(typeof(GeneratorFrequency), reader.ReadLine());
+				} catch(System.ArgumentException e){
+					Debug.LogError(e);
 				}
 			}
 		}
@@ -462,8 +503,22 @@ public class GameScript : MonoBehaviour {
 			GUI.backgroundColor = Color.white;
 			GUILayout.Label("Correct! " + CurrentQuestion.m_correctResponse);
 		}
-		
 		GUILayout.EndHorizontal();
+
+		// Tagging
+		GUILayout.BeginVertical("box", GUILayout.ExpandWidth(true));
+		GUILayout.Label("How often shall this question be asked:");
+
+		int freq =
+			(int)QuestionsScript.GetGeneratorFrequency(CurrentQuestion.m_generatorId);
+		string[] frequencyOptions = {"Rarely", "Default", "Frequently"};
+		int newFreq = GUILayout.SelectionGrid(freq, frequencyOptions, 3);
+		if(newFreq != freq){
+			QuestionsScript.SetGeneratorFrequency(CurrentQuestion.m_generatorId, (GeneratorFrequency)newFreq);
+		}
+
+		GUILayout.EndVertical();
+
 		GUILayout.EndVertical();
 		GUILayout.EndHorizontal();
 		
@@ -516,7 +571,7 @@ public class GameScript : MonoBehaviour {
 	
 	void GoToNextQuestion(){
 		questionCount++;
-		currentQuestion++;
+		currentQuestion = QuestionsScript.singleton.GenerateQuestion();
 		reverseOptions = Random.value >= 0.5f;
 		tutorialAnsweredOneQuestion = true;
 		gameStep = GameStep.Question;
@@ -566,7 +621,7 @@ public class GameScript : MonoBehaviour {
 		
 		if(GUILayout.Button("BACK")){
 			deleteUnselectedConfirmation = false;
-			currentQuestion = -1;
+			currentQuestion = null;
 			QuestionDatabase.resultLog = null;
 			QuestionDatabase.SaveDatabases();
 			QuestionsScript.singleton.LoadAllQuestions();
@@ -670,7 +725,7 @@ public class GameScript : MonoBehaviour {
 			GUILayout.EndHorizontal();
 		}
 		if(tagsChanged){
-			QuestionsScript.singleton.UpdateQuestionGenerators();
+			QuestionsScript.singleton.SelectAndShuffleGenerators();
 		}
 		GUILayout.EndScrollView();
 		
@@ -679,11 +734,10 @@ public class GameScript : MonoBehaviour {
 		GUILayout.BeginHorizontal();
 		if(GUILayout.Button("BACK")){
 			SaveGame();
-			currentQuestion = -1;
-			QuestionsScript.singleton.RegenerateQuestions();
+			currentQuestion = null;
 			gameStep = GameStep.Options;
 		}
-		GUILayout.Label("Data tables available: " + QuestionsScript.generators.FindAll(generator => generator.m_active).Count + "/" + QuestionsScript.generators.Count, GUILayout.ExpandHeight(true));
+		GUILayout.Label("Data tables available: " + QuestionsScript.singleton.GetActiveGeneratorCount() + "/" + QuestionsScript.singleton.generators.Count, GUILayout.ExpandHeight(true));
 		GUILayout.EndHorizontal();
 
 		EndLayout();
@@ -696,7 +750,6 @@ public class GameScript : MonoBehaviour {
 		if(GUILayout.Button("QUESTION DATABASES")){
 			deleteUnselectedConfirmation = false;
 			uiScrollPosition = Vector2.zero;
-			QuestionsScript.singleton.StopGeneratingQuestions();
 			gameStep = GameStep.QuestionDatabases;
 		}
 		if(GUILayout.Button("QUESTION TYPES")){

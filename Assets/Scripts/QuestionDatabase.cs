@@ -162,7 +162,7 @@ public class QuestionDatabase {
 			writer.Write(currentRequest.text);
 			writer.Close();
 			
-			QuestionsScript.LoadQuestions(newDatabase);
+			QuestionsScript.singleton.LoadQuestionsAndUpdate(newDatabase);
 			if(newDatabase.downloaded){
 				globalFileIndex++;
 				databases.Add(newDatabase);

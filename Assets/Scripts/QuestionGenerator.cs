@@ -7,7 +7,13 @@ public class QuestionGenerator {
 	
 	public enum GeneratorType { Sorted, Match, SortedMultiset };
 	
+	// The Database that the generator was read from.
 	public QuestionDatabase m_database;
+
+	// A (hopefully) unique identifier for this generator. Defaults to the
+	// question's text if not set explicitly.
+    public string m_id = "";
+
 	public GeneratorType m_type;
 	public string[] m_tags;
 	public string m_questionText = "";
@@ -36,6 +42,11 @@ public class QuestionGenerator {
 		generator.m_type = (GeneratorType)System.Enum.Parse(typeof(GeneratorType), reader.GetAttribute("Type"));
 		generator.m_weight = System.Convert.ToSingle(reader.GetAttribute("Weight"));
 		generator.m_questionText = reader.GetAttribute("QuestionText");
+
+		generator.m_id = reader.GetAttribute("Id");
+		if(generator.m_id == null)
+			generator.m_id = generator.m_questionText;
+
 		generator.m_adjacentWithin = System.Convert.ToInt32(reader.GetAttribute("AdjacentWithin"));
 		generator.m_infoPrefix = reader.GetAttribute("InfoPrefix");
 		generator.m_infoSuffix = reader.GetAttribute("InfoSuffix");
@@ -60,6 +71,7 @@ public class QuestionGenerator {
 		} while(correctIndex == wrongIndex);
 
 		Question question = new Question();
+		question.m_generatorId = m_id;
 		question.m_questionText = m_questionText.Replace("__", m_answers[correctIndex].m_text);
 		question.m_correctAnswerText = m_answers[correctIndex].m_value;
 		question.m_wrongAnswerText = m_answers[wrongIndex].m_value;
@@ -78,6 +90,7 @@ public class QuestionGenerator {
 		int wrongIndex = Mathf.Max(index1, index2);
 		
 		Question question = new Question();
+		question.m_generatorId = m_id;
 		question.m_questionText = m_questionText;
 		question.m_correctAnswerText = m_answers[correctIndex].m_text;
 		question.m_wrongAnswerText = m_answers[wrongIndex].m_text;

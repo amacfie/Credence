@@ -3,6 +3,7 @@ using System.Collections;
 
 public class Question {
 
+	public string m_generatorId;
 	public string m_questionText;
 	public string m_correctAnswerText;
 	public string m_wrongAnswerText;
